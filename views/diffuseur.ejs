@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="viewport" content="width=device-width,  initial-scale=1, maximum-scale=1"">
+ 
+    <title>La poste</title>
+    <link rel="stylesheet" type="text/css" href="<%= url_static_root %>stylesheets/style.css" />
+    <link rel="stylesheet" type="text/css" href="<%= url_static_root %>stylesheets/diffuseur.css" />
+    <link rel="stylesheet" type="text/css" href="<%= url_static_root %>stylesheets/collecte_nuage.css" />
+    <link rel="stylesheet" type="text/css" href="<%= url_static_root %>stylesheets/jqcloud.css" />
+    <link href="<%= url_static_root %>stylesheets/jquery-ui.css" rel="stylesheet">
+    <link href="<%= url_static_root %>stylesheets/jquery-theme-ui.css" rel="stylesheet">
+  </head>
+  <body>
+  <div id="centrage">
+    <h1 id="gris">diffuseur </h1>
+    <div id="container"></div>
+   
+ <div  style="display:none" id="fonction"> </div>
+  </div> 
+    <script src="<%= url_nodejs_root %>socket.io/socket.io.js"></script>
+    <script type="text/javascript" src="<%= url_static_root %>javascripts/jquery-1.10.2.min.js"></script>
+    <script type="text/javascript" src="<%= url_static_root %>javascripts/jquery-ui-1.10.3.custom.js"></script>
+    <script type="text/javascript" src="<%= url_static_root %>javascripts/jquery.ui.touch-punch.js"></script>
+    <script type="text/javascript" src="<%= url_static_root %>javascripts/lodash.js"></script>
+    <script type="text/javascript" src="<%= url_static_root %>javascripts/jqcloud-1.0.4.js"></script>
+    <script type="text/javascript" src="<%= url_static_root %>javascripts/jquery.jeditable.mini.js"></script>
+    <script type="text/javascript">
+
+    var socket = io.connect('<%= web_server_url %>', { resource : '<%= url_nodejs %>socket.io' });
+
+    socket.on('connect',function(){
+               socket.emit('diffuseur:connect','diffuseurs') ;
+    });
+
+      socket.on('diffuseur:template',function(data) {
+
+        $("h1").html("");
+       	 $("#templates").load("<%= url_static_root %>templates/" + data.template , function(t){
+            $.getJSON("<%= url_static_root %>datas/" + data.template_data , function(d) {
+              var donnees = $.extend({},d,data);  
+              var compiled = _.template(t,donnees) ;
+              $("#container").empty().removeClass('jqcloud');
+              $("#"+data.cible).html(compiled) ;
+              $("div#templates").empty(); 
+              $("#"+data.cible).trigger(data.template,[data.bdd,donnees.titrenuage]) ;
+	  }); // getJSON
+        });  // load template 
+       }); // socket diffuseur:template
+
+      socket.on('diffuseur:message',function(d) {
+                 $("div#container").html("<div id=question>"+d.message+"</div>") ;
+                 $("div#question").addClass("big") ;
+      });
+
+//---------- trigger collecte_nuage.ejs --------------
+
+  $("#container").on('collecte_nuage.ejs',function(){ 
+
+	function initdraggable(){   
+ 	$( ".draggable" ).draggable({ 
+                                 revert: "valid",
+                                 stack: ".draggable"
+                                });  
+ 
+    $( ".draggable" ).droppable({
+      activeClass: "ui-state-hover",
+      hoverClass: "ui-state-active",
+      drop: function( event, ui ) {
+        var poids_drag = parseInt($(ui.draggable).attr('poids'),10);
+        if ( poids_drag > 0) {
+          var poids_drop = parseInt($(this).attr('poids'),10);
+          if (poids_drop == 0) { poids_drag -= 1 ; poids_drop = 1 ;
+            $( this ).find( "span.compteur" ).html( poids_drop );
+            $( this ).attr('poids',poids_drop);
+            $(ui.draggable).find( "span.compteur" ).html( poids_drag );
+            $(ui.draggable).attr('poids', poids_drag);   
+
+          } else {
+            poids_drop += poids_drag ;
+            $( this ).find( "span.compteur" ).html( poids_drop );
+            $( this ).attr('poids',poids_drop);
+            $(ui.draggable).find( "span.compteur" ).html( 0 );
+            $(ui.draggable).attr('poids',0); poids_drag=0
+          }
+          // maj base de donnée par socket.emit
+          var dropid = $(this).attr('id');
+          var dragid = $(ui.draggable).attr('id');
+          socket.emit('diffuseur:reponse' , { typerep:"drop" , dropid:dropid , droppoids:poids_drop , dragid:dragid, dragpoids:poids_drag  })
+        }
+      }
+    });
+}
+
+initdraggable();
+
+    $("#cache").bind('click',function(data){ 
+         $(".draggable").each(function(){ if ( $(this).attr('poids') == 0 ) { $(this).hide() } })
+    });
+    $("#montre").bind('click',function(data){ 
+         $(".draggable").each(function(){ if ( $(this).attr('poids') == 0 ) { $(this).show() } })
+    });
+
+    $("#refresh").bind('click',function(data){ 
+        socket.emit('diffuseur:refresh');
+        $("div#message").html("");
+    });
+
+    $(".mot").editable(function(value,settings){
+        var lid = $(this).parent().attr('id');
+        socket.emit( "diffuseur:reponse" , { typerep:"majmot", id:lid , value:value } ) ;
+         return (value);
+         },{
+        event: 'dblclick',
+        type:'text',
+        submit:'ok',
+        cancel:'annul',
+        tooltip: 'Doubleclick pour éditer'
+        })
+//majbargraph
+  
+	$(".compteur").each(function(i){$(this).width(parseInt($(this).text(),10)*15)})
+
+ // technique de http://www.karedas.net/tout-trier-avec-jquery-16.html
+            $("#tripoids").bind("click",function(){
+                $(".draggable").sort(function(a,b){
+                    return parseInt($(a).attr("poids")) < parseInt($(b).attr("poids"),10) ? 1 : -1;}).droppable("destroy").draggable("destroy").remove().appendTo("#liste");
+                initdraggable();
+            });
+            $("#trialpha").bind("click",function(){
+                $(".draggable").sort(function(a,b){
+                    return $(a).find(".mot").text() > $(b).find(".mot").text() ? 1 : -1; }).droppable("destroy").draggable("destroy").remove().appendTo("#liste");
+                initdraggable();
+            });
+    
+}); // on collect_nuage
+
+$("#fonction").on('affiche_nuage.ejs',function(evt,bdd,titrenuage) { 
+	$("div#container").removeClass('jqcloud').html("").jQCloud(bdd, { removeOverflowing:false,delayedMode: true, afterCloudRender: function(){ 
+        $("h1").html(titrenuage);
+	console.log($("div#container span").length); 
+   } } )
+})
+
+  $("#container").on('affiche_reponse.ejs',function(){ 
+    $("#refresh").bind('click',function(data){ 
+        socket.emit('diffuseur:refresh');
+    });
+  })
+
+  $("#container").on('affiche_reponse_slider.ejs',function(){ 
+    $("#refresh").bind('click',function(data){ 
+        socket.emit('diffuseur:refresh');
+    });
+  })
+//---------- slider ----------------------------------
+ 
+$("#container").on('slider.ejs',function(event,seq,phas){ 
+    var reponses = {} ;
+    var lid; 
+
+	$(".slider").each(function(){ 
+        	reponses[$(this).attr('id')] = 1
+	})
+
+    $( ".slider" ).slider({
+      value:1,
+      min: 1,
+      max: 5,
+      step: 1,
+      slide: function( event, ui ) {
+      }
+    });
+
+    $(".ui-slider-handle").html("&nbsp;1" );
+
+}); //------------- fin slider ----------------------------------
+
+</script>
+<div style="display: none" id="templates"></div>
+</body>
+</html>

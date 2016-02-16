@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8"> 
+    <title>Conducteur</title>
+	<style>
+	   p { display:table-cell; width:50px; padding:5px; font-size:0.8em; }
+           p.tcp, button { display:table-cell; width:260px; padding:5px; font-size:0.8em; }
+           .allume { background-color:orange }
+	</style>
+  
+</head>
+
+<body>
+ <h1>conducteur</h1>
+ <div>
+
+<% for(var i=0; i<top.length; i++) {%>
+<div id="<%= top[i].id %>" >
+   <p class="seq"><%= top[i].sequence %></p>
+   <p class="phas"><%= top[i].phase %></p>
+   <p class="tcp"><%= top[i].timecode_prevu %></p>
+   <p><button class="go"><%= top[i].ordre %></button></p>
+</div>
+<% } %>
+
+ </div>
+ <script src="<%= url_nodejs_root %>socket.io/socket.io.js"></script>
+  <script type="text/javascript" src="<%= url_static_root %>javascripts/jquery-1.10.2.min.js"></script>
+  <script type="text/javascript">
+
+  $(document).ready(function() {
+
+     var socket = io.connect('<%= web_server_url %>', { resource : '<%= url_nodejs %>socket.io' });
+
+     $(".go").bind('click',function(data){
+        $("div").removeClass('allume');
+        $(this).parent().parent().addClass('allume');
+        var lid = $(this).parent().parent().attr('id');
+
+        var seq    =  $("div#"+lid+" p.seq").text()  ; 
+        var phas   =  $("div#"+lid+" p.phas").text() ; 
+        var tcp    =  $("div#"+lid+" p.tcp").text()  ; 
+        
+        var ordre = "s"+seq+"_"+phas ;
+        socket.emit('conducteur:sequence',{nom:ordre} ) ;
+
+     });
+
+     });
+  </script>
+</body>
+</html>

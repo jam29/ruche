@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html>
+  <head>
+
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="viewport" content="width=device-width,  initial-scale=1, maximum-scale=1"">
+
+    <meta charset="UTF-8"> 
+    <title>La poste</title>
+    <link rel="stylesheet" type="text/css" href="<%= url_static_root %>stylesheets/style.css" />
+    <link rel="stylesheet" type="text/css" href="<%= url_static_root %>stylesheets/groupe.css" />
+    <link rel="stylesheet" type="text/css" href="<%= url_static_root %>stylesheets/jqcloud.css" />
+    <link href="<%= url_static_root %>stylesheets/jquery-ui.css" rel="stylesheet">
+    <link href="<%= url_static_root %>stylesheets/jquery-theme-ui.css" rel="stylesheet">
+  </head>
+  <body>
+<% if (idgrp) { %>
+<div id="centrage">
+    <h1>Groupe <%= idgrp %></h1>
+    <div id="container"></div>
+  
+    <div id="dialog"></div> <div  style="display:none" id="fonction"> </div>
+</div>
+ 
+    <script src="<%= url_nodejs_root %>socket.io/socket.io.js"></script>
+    <script type="text/javascript" src="<%= url_static_root %>javascripts/jquery-1.10.2.js"></script>
+    <script type="text/javascript" src="<%= url_static_root %>javascripts/jquery-ui-1.10.3.custom.js"></script>
+    <script type="text/javascript" src="<%= url_static_root %>javascripts/jquery.ui.touch-punch.js"></script>
+    <script type="text/javascript" src="<%= url_static_root %>javascripts/lodash.js"></script>
+    <script type="text/javascript" src="<%= url_static_root %>javascripts/jqcloud-1.0.4.js"></script>
+    <script type="text/javascript">
+      var socket = io.connect('<%= web_server_url %>', { resource : '<%= url_nodejs %>socket.io' });
+
+      socket.on('connect',function(){
+               socket.emit('groupe:connect','groupes') ;
+      });
+
+      socket.on('message',function(message){ 
+                    $("#dialog").html(message.message).dialog({
+                     height:140,modal:true}); 
+                  //   $('#message').html(message.message).show().fadeOut(3000) 
+      });
+
+      socket.on('groupe:template',function(data) {
+       $("#container").css('opacity','1'); 
+        $("#templates").load("<%= url_static_root %>templates/" + data.template , function(t){
+            $.getJSON("<%= url_static_root %>datas/" + data.template_data , function(d) {
+              var donnees = $.extend({},d,data,{idgrp:<%= idgrp %>});  
+              var compiled = _.template(t,donnees) ;
+              $("#container").empty().removeClass('jqcloud');
+              $("#"+data.cible).html(compiled);
+ 	      $("div#templates").empty(); 
+              $("#"+data.cible).trigger(data.template,[data.seq,data.phas,data.echelle,data.bdd]);
+ 	  });
+         }); 
+        });
+
+// ----------- trigger notes -----
+
+$("#container").on('note.ejs',function(){	
+  $(".note").bind("click",function(){
+    var note = $(this).attr('val') ;  
+    $("#container").css("opacity","0.3");
+    var confirmation =  confirm('Confirmez vous la valeur'+note);
+    if (confirmation) {
+		socket.emit('groupe:reponse',{type:"groupe",idgrp:<%= idgrp  %>,note:note}) ;
+    } 
+    $("#container").css("opacity","1");
+  }) 
+})
+
+// ----------- trigger question salle -----
+$("#container").on('question_salle.ejs',function(){	
+	$("#f").submit(function(e)  {
+	 e.preventDefault();
+         var question = $("#question").val(); 
+         if (question.length > 0) {
+		socket.emit('groupe:reponse',{type:"groupe",idgrp:<%= idgrp  %>,question:question}) ;
+                $("textarea").attr('readonly','readonly');
+                $("input[type='submit']").hide();
+    $("#container").css("opacity","0.3");
+		}
+               });       
+})
+// ----------- trigger saisie_nuage -----
+
+$("#container").on('saisie_nuage.ejs',function(){	
+
+	$("#f").submit(function(e)  {
+	 e.preventDefault();
+         var unmot = $("#saisie").val(); 
+         if ( unmot.indexOf(' ') > 0 ) {
+        		var unmot = unmot.substr(0,unmot.indexOf(' '))
+         }
+
+         if (unmot.length > 0) {
+			socket.emit('groupe:reponse',{idgrp:<%= idgrp  %>,mot:unmot}) ;
+            $("#saisie").val('') ;
+		}
+	 })
+
+ }) // fin on saisie nuage
+//---------- fin on saisie_nuage -------------
+
+//---------- trigger question classement -------------
+
+  $("#container").on('questions_classement2.ejs',function(event,seq,phas){ 
+    socket.emit('groupe:reponse',{type:"new",idgrp:<%= idgrp %>, seq:seq, phas:phas, reponse:"item[]=1&item[]=2&item[]=3&item[]=4&item[]=5&item[]=6&item[]=7", commentaire:''}) ;
+
+
+
+var numerote = function() {
+$("#sortable li span").css('margin-left','+24px');
+	var fs = 24;
+	$(".ui-state-default").each(function() { 
+           $(this).css("font-size",fs+"px"); fs-- ;
+           var rang = parseInt($(this).index(),10)+1;
+           $(this).css("background-image","url(http://n1.netdirect.fr/130917_La_Poste/images/sortable_"+rang+".jpg)");
+         
+	});
+}
+
+numerote();
+
+    var data="item[]=1&item[]=2&item[]=3&item[]=4&item[]=5&item[]=6&item[]=7";
+    $( "#sortable" ).sortable({ 
+		  axis:"y",
+		  stop: function (event, ui) {
+       		     data = $(this).sortable('serialize');
+                     numerote();
+       		}
+      });
+
+      $( "#sortable" ).disableSelection();
+
+      $("#f2").submit(function(e)  {            
+        e.preventDefault();
+        var commentaire = $("#saisie2").val(); 
+        socket.emit('groupe:reponse',{idgrp:<%= idgrp %>, seq:seq, phas:phas, reponse:data, commentaire:commentaire}) ;
+          $("#container").css('opacity','0.2'); 
+        //---> à vérifier direct socket.emit('moderateur:refresh')
+        //$("#saisie2").val('');
+      })
+    }) // fin on classement
+//------------ fin trigger questions classement ------
+//---------- slider ----------------------------------
+ 
+$("#container").on('slider.ejs',function(event,seq,phas,echelle){ 
+   var commentaire = ""; 
+
+    var reponses = {} ;
+    var lid; 
+
+	$(".slider").each(function(){ 
+        	reponses[$(this).attr('id')] = 1
+	})
+
+    $( ".slider" ).slider({
+      value:1,
+      min: 1,
+      max: echelle,
+      step: 1,
+      slide: function( event, ui ) {
+        lid = $(this).attr('id'); 
+        $("#"+lid+" .ui-slider-handle").html("&nbsp;"+ui.value);
+        reponses[lid] = ui.value ;
+        console.log(reponses);
+      }
+    });
+
+    $(".ui-slider-handle").html("&nbsp;1" );
+
+  $("#f2").submit(function(e)  {
+          e.preventDefault();
+          var commentaire = $("#saisie2").val(); 
+          socket.emit('groupe:reponse',{idgrp:<%= idgrp %>,  seq:seq , phas:phas , reponse:reponses , commentaire:commentaire })
+          $( ".slider" ).slider({ disabled: true });
+          $("#container").css('opacity','0.2'); 
+   });
+
+}); //------------- fin slider ----------------------------------
+
+$("#fonction").on('affiche_nuage.ejs',function(evt,bdd) { 
+	$("div#container").removeClass('jqcloud').html("").jQCloud(bdd, { removeOverflowing:false,delayedMode: true, afterCloudRender: function(){ 
+	console.log($("div#container span").length); } } )
+})
+
+$("#fonction").on('freeze_slider.ejs',function(evt) { 
+	$("#f2").remove() ; 
+	$(".slider").slider("disable");     
+})
+
+$("#fonction").on('freeze_sortable.ejs',function(evt) { 
+	$("form#f2").remove() ; 
+	$("#sortable").sortable("disable");     
+})
+
+
+//---------- trigger allume.ejs ----------------------------------
+ 
+$("#container").on('allume.ejs',function(event,seq,phas){ 
+
+  var reponses = {} 
+  var long = $(".avglig").length ;
+  var tab = new Array(long); 
+  for (var i = 0; i < long; i++) { tab[i] = 0 ; }
+
+  $(".avglig").bind("click",function(){ 
+          var lid = $(this).attr('id');  
+          if ( tab[lid] == 1 ) { tab[lid] = 0 ; $(this).removeClass('allume');} else { tab[lid]=1;$(this).addClass('allume'); }
+          reponses = JSON.stringify(tab) ;
+  });
+
+  $("#f2").submit(function(e)  {
+          e.preventDefault();
+          var commentaire = $("#saisie2").val(); 
+          socket.emit('groupe:reponse',{idgrp:<%= idgrp %>,  seq:seq , phas:phas , reponse:reponses , commentaire:commentaire })
+          $("#container").css("opacity","0.5");
+  });
+   
+});
+
+//---------- trigger allume2.ejs ----------------------------------
+ 
+$("#container").on('allume2.ejs',function(event,seq,phas){ 
+
+  var reponses = {} 
+  var long = $(".avglig").length ;
+  var tab = new Array(long); 
+  for (var i = 0; i < long; i++) { tab[i] = 0 ; }
+
+  $(".avglig").bind("click",function(){ 
+          for (var i = 0; i < long; i++) { tab[i] = 0 ; $(".avglig").removeClass('allume'); }
+          var lid = $(this).attr('id');  
+          tab[lid]=1;$(this).addClass('allume'); 
+          reponses = JSON.stringify(tab) ;
+  });
+
+  $("#f2").submit(function(e)  {
+          e.preventDefault();
+          var commentaire = $("#saisie2").val(); 
+          socket.emit('groupe:reponse',{idgrp:<%= idgrp %>,  seq:seq , phas:phas , reponse:reponses , commentaire:commentaire })
+          $("#container").css("opacity","0.5");
+  });
+   
+});
+
+//----------------------------------------------------------------
+ 
+</script>
+
+  <div style="display: none;" id="templates"></div>
+<% } else { %>  
+<h4>choisir un groupe</h4>
+<ul>
+<li><a href="choix_groupe/1">groupe1</a></li>
+<li><a href="choix_groupe/2">groupe2</a></li>
+<li><a href="choix_groupe/3">groupe3</a></li>
+<li><a href="choix_groupe/4">groupe4</a></li>
+<li><a href="choix_groupe/5">groupe5</a></li>
+<li><a href="choix_groupe/6">groupe6</a></li>
+<li><a href="choix_groupe/7">groupe7</a></li>
+<li><a href="choix_groupe/8">groupe8</a></li>
+<li><a href="choix_groupe/9">groupe9</a></li>
+<li><a href="choix_groupe/10">groupe10</a></li>
+<li><a href="choix_groupe/11">groupe11</a></li>
+<li><a href="choix_groupe/12">groupe12</a></li>
+<li><a href="choix_groupe/13">groupe13</a></li>
+<li><a href="choix_groupe/14">groupe14</a></li>
+<li><a href="choix_groupe/15">groupe15</a></li>
+<li><a href="choix_groupe/16">groupe16</a></li>
+<li><a href="choix_groupe/17">groupe17</a></li>
+<li><a href="choix_groupe/18">groupe18</a></li>
+<li><a href="choix_groupe/18">groupe19</a></li>
+<li><a href="choix_groupe/18">groupe20</a></li>
+</ul>
+<% } %>
+</body>
+</html>

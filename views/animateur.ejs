@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="viewport" content="width=device-width,  initial-scale=1, maximum-scale=1"">
+ 
+    <title>La poste</title>
+    <link rel="stylesheet" type="text/css" href="<%= url_static_root %>stylesheets/style.css" />
+    <link rel="stylesheet" type="text/css" href="<%= url_static_root %>stylesheets/animateur.css" />
+    <link rel="stylesheet" type="text/css" href="<%= url_static_root %>stylesheets/collecte_nuage.css" />
+    <link rel="stylesheet" type="text/css" href="<%= url_static_root %>stylesheets/jqcloud.css" />
+    <link href="<%= url_static_root %>stylesheets/jquery-ui.css" rel="stylesheet">
+    <link href="<%= url_static_root %>stylesheets/jquery-theme-ui.css" rel="stylesheet">
+  </head>
+  <body>
+  <div id="centrage">
+    <h1>animateur</h1>
+    <div id="container"></div>
+   
+  </div> 
+    <script src="<%= url_nodejs_root %>socket.io/socket.io.js"></script>
+    <script type="text/javascript" src="<%= url_static_root %>javascripts/jquery-1.10.2.min.js"></script>
+    <script type="text/javascript" src="<%= url_static_root %>javascripts/jquery-ui-1.10.3.custom.js"></script>
+    <script type="text/javascript" src="<%= url_static_root %>javascripts/jquery.ui.touch-punch.js"></script>
+    <script type="text/javascript" src="<%= url_static_root %>javascripts/lodash.js"></script>
+    <script type="text/javascript" src="<%= url_static_root %>javascripts/jqcloud-1.0.4.js"></script>
+    <script type="text/javascript" src="<%= url_static_root %>javascripts/jquery.jeditable.mini.js"></script>
+    <script type="text/javascript">
+
+    var socket = io.connect('<%= web_server_url %>', { resource : '<%= url_nodejs %>socket.io' });
+
+    socket.on('connect',function(){
+               socket.emit('animateur:connect','animateurs') ;
+    });
+
+//    socket.on('message',function(message){ $('#message').html(message.message).show().fadeOut(3000) });
+      socket.on('animateur:message',function(d) {
+                 $("div#container").html("<div id=question>"+d.message+"</div>") ;
+                 $("div#question").addClass("big") ;
+      });
+
+
+      socket.on('animateur:template',function(data) {
+
+         $("#message").html("");
+
+       	 $("#templates").load("<%= url_static_root %>templates/" + data.template , function(t){
+            $.getJSON("<%= url_static_root %>datas/" + data.template_data , function(d) {
+              var donnees = $.extend({},d,data);  
+              var compiled = _.template(t,donnees) ;
+              $("#"+data.cible).html(compiled) ;
+              $("div#templates").empty(); 
+              $("#"+data.cible).trigger(data.template) ;
+                  
+            if (data.template == 'affiche_nuage.ejs') {
+                $("div#container").jQCloud(data.bdd) ;
+            } else { 
+                $("div#container").removeClass('jqcloud'); 
+	    }
+	  }); // getJSON
+        });  // load template 
+       }); // socket animateur:template
+
+  $("#container").on('affiche_reponse.ejs',function(){ 
+    $("#refresh").bind('click',function(data){ 
+        socket.emit('animateur:refresh');
+    });
+  })
+
+  $("#container").on('reponses_allume.ejs',function(){ 
+    $("#refresh").bind('click',function(data){ 
+        socket.emit('animateur:refresh');
+    });
+  })
+
+  $("#container").on('affiche_reponse_slider.ejs',function(){ 
+    $("#refresh").bind('click',function(data){ 
+        socket.emit('animateur:refresh');
+    });
+  })
+
+//---------- trigger collecte_question.ejs --------------
+  $("#container").on('collecte_questions.ejs',function(){ 
+  $(this).css("overflow","auto");
+  $("#message").hide();
+    $("#refresh").bind('click',function(data){ 
+        socket.emit('animateur:refresh');
+    });
+     
+    $(".sms").bind("click",function(){ var lid = $(this).attr('id'); 
+       socket.emit("animateur:reponse",{ type:"moderateur", id:lid });
+    })
+})
+
+</script>
+<div style="display: none;" id="templates"></div>
+</body>
+</html>

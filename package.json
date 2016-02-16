@@ -1,0 +1,20 @@
+{
+  "name": "myapp",
+  "version": "0.0.0",
+  "description": "ruche",
+  "main": "app.js",
+  "dependencies": {
+    "ejs": "0.8.x",
+    "express": "3.x",
+    "mysql": "2.0.x",
+    "socket.io": "0.9.x",
+    "cookie": "0.1.x"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "BSD",
+  "engine": "node >= 0.10.17"
+}
